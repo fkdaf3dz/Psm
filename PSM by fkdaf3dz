@@ -545,9 +545,9 @@ infoTabBtn.MouseButton1Click:Connect(function() switchTab("INFO") end)
 
 --// END OF SECTION 3
 --// MATRIX POWER HUB - SECTION 4
--- Functions, Graphics (EFFICIENT + GRAY MODE), Input Handling, FPS, Rain
+-- Functions, Graphics, Input Handling (Fixed Drag), FPS, Rain
 
---// Expand/Collapse Functions (Defined BEFORE input handling)
+--// Expand/Collapse Functions
 function expandIsland()
 	isExpanded = true
 	islandPosBeforeExpand = island.Position
@@ -596,7 +596,6 @@ function setExtremeGraphics(enabled)
 		
 		camera.FieldOfView = 50
 		
-		-- Efficient chunked processing
 		task.spawn(function()
 			local descendants = workspace:GetDescendants()
 			for i = 1, #descendants do
@@ -817,86 +816,132 @@ closeButton.MouseButton1Click:Connect(function()
 	if isExpanded then collapseIsland() end
 end)
 
---// ISLAND INPUT HANDLING (Fixed drag + click)
+--// FIXED ISLAND INPUT HANDLING (Proper Drag Support)
 local isDraggingIsland = false
-local dragStart = nil
-local startPos = nil
+local dragStartPos = nil
+local islandStartPos = nil
 local dragThreshold = 5
 
 island.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
-	if input.UserInputType ~= Enum.UserInputType.Touch and 
-	   input.UserInputType ~= Enum.UserInputType.MouseButton1 then
-		return
+	
+	-- Support both touch and mouse
+	if input.UserInputType == Enum.UserInputType.Touch or 
+	   input.UserInputType == Enum.UserInputType.MouseButton1 then
+		
+		isDraggingIsland = false
+		dragStartPos = input.Position
+		islandStartPos = island.Position
+		
+		-- Store input object for comparison
+		local currentInput = input
+		
+		-- Create connections
+		local moveConnection = nil
+		local endConnection = nil
+		
+		moveConnection = UserInputService.InputChanged:Connect(function(changedInput)
+			-- Check if this is the same input (by comparing UserInputType and Position history)
+			if changedInput.UserInputType == currentInput.UserInputType then
+				local delta = (changedInput.Position - dragStartPos).Magnitude
+				
+				if delta > dragThreshold then
+					isDraggingIsland = true
+					
+					-- Calculate new position based on delta from start
+					local deltaX = changedInput.Position.X - dragStartPos.X
+					local deltaY = changedInput.Position.Y - dragStartPos.Y
+					
+					-- Update island position
+					island.Position = UDim2.new(
+						islandStartPos.X.Scale, 
+						islandStartPos.X.Offset + deltaX,
+						islandStartPos.Y.Scale, 
+						islandStartPos.Y.Offset + deltaY
+					)
+				end
+			end
+		end)
+		
+		endConnection = UserInputService.InputEnded:Connect(function(endedInput)
+			if endedInput.UserInputType == currentInput.UserInputType then
+				-- Disconnect both connections
+				if moveConnection then
+					moveConnection:Disconnect()
+					moveConnection = nil
+				end
+				if endConnection then
+					endConnection:Disconnect()
+					endConnection = nil
+				end
+				
+				-- If didn't drag and not expanded, open menu
+				if not isDraggingIsland and not isExpanded then
+					expandIsland()
+				end
+			end
+		end)
 	end
-	
-	isDraggingIsland = false
-	dragStart = input.Position
-	startPos = island.AbsolutePosition
-	
-	local moveConnection, endConnection
-	
-	moveConnection = UserInputService.InputChanged:Connect(function(moveInput)
-		if moveInput == input then
-			local delta = (moveInput.Position - dragStart).Magnitude
-			if delta > dragThreshold then
-				isDraggingIsland = true
-				local deltaPos = moveInput.Position - dragStart
-				island.Position = UDim2.new(0, startPos.X + deltaPos.X, 0, startPos.Y + deltaPos.Y)
-			end
-		end
-	end)
-	
-	endConnection = UserInputService.InputEnded:Connect(function(endInput)
-		if endInput == input then
-			moveConnection:Disconnect()
-			endConnection:Disconnect()
-			
-			if not isDraggingIsland and not isExpanded then
-				expandIsland()
-			end
-		end
-	end)
 end)
 
---// PANEL DRAG HANDLING
+--// PANEL DRAG HANDLING (Header only)
 local isDraggingPanel = false
+local panelDragStart = nil
+local panelStartPos = nil
 
 headerBar.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
-	if input.UserInputType ~= Enum.UserInputType.Touch and 
-	   input.UserInputType ~= Enum.UserInputType.MouseButton1 then
-		return
-	end
 	
-	isDraggingPanel = false
-	dragStart = input.Position
-	startPos = expandedContainer.AbsolutePosition
-	
-	local moveConnection, endConnection
-	
-	moveConnection = UserInputService.InputChanged:Connect(function(moveInput)
-		if moveInput == input then
-			local delta = (moveInput.Position - dragStart).Magnitude
-			if delta > dragThreshold then
-				isDraggingPanel = true
-				local deltaPos = moveInput.Position - dragStart
-				local newPos = UDim2.new(0, startPos.X + deltaPos.X, 0, startPos.Y + deltaPos.Y)
-				expandedContainer.Position = newPos
-				savedPanelPos = newPos
+	if input.UserInputType == Enum.UserInputType.Touch or 
+	   input.UserInputType == Enum.UserInputType.MouseButton1 then
+		
+		isDraggingPanel = false
+		panelDragStart = input.Position
+		panelStartPos = expandedContainer.Position
+		
+		local currentInput = input
+		local moveConnection = nil
+		local endConnection = nil
+		
+		moveConnection = UserInputService.InputChanged:Connect(function(changedInput)
+			if changedInput.UserInputType == currentInput.UserInputType then
+				local delta = (changedInput.Position - panelDragStart).Magnitude
+				
+				if delta > dragThreshold then
+					isDraggingPanel = true
+					
+					local deltaX = changedInput.Position.X - panelDragStart.X
+					local deltaY = changedInput.Position.Y - panelDragStart.Y
+					
+					local newPos = UDim2.new(
+						panelStartPos.X.Scale,
+						panelStartPos.X.Offset + deltaX,
+						panelStartPos.Y.Scale,
+						panelStartPos.Y.Offset + deltaY
+					)
+					
+					expandedContainer.Position = newPos
+					savedPanelPos = newPos
+				end
 			end
-		end
-	end)
-	
-	endConnection = UserInputService.InputEnded:Connect(function(endInput)
-		if endInput == input then
-			moveConnection:Disconnect()
-			endConnection:Disconnect()
-		end
-	end)
+		end)
+		
+		endConnection = UserInputService.InputEnded:Connect(function(endedInput)
+			if endedInput.UserInputType == currentInput.UserInputType then
+				if moveConnection then
+					moveConnection:Disconnect()
+					moveConnection = nil
+				end
+				if endConnection then
+					endConnection:Disconnect()
+					endConnection = nil
+				end
+			end
+		end)
+	end
 end)
 
---// FPS Counter & Anti-AFK (Every 5 min with 0.2 movement)
+--// FPS Counter & Anti-AFK
 local lastCalcTime = tick()
 local frameAccumulator = 0
 local notifyShown = false
@@ -952,13 +997,12 @@ task.spawn(function()
 	end
 end)
 
---// Rain Animation (Optimized - skip frames when power saving)
+--// Rain Animation (Optimized)
 local rainUpdateInterval = 0
 RunService.RenderStepped:Connect(function(dt)
-	-- Slow down rain when in power save mode to save CPU
 	if activePowerMode ~= "NONE" then
 		rainUpdateInterval = rainUpdateInterval + dt
-		if rainUpdateInterval < 0.05 then return end -- 20fps instead of 60fps
+		if rainUpdateInterval < 0.05 then return end
 		rainUpdateInterval = 0
 	end
 	
@@ -1003,8 +1047,9 @@ RunService.RenderStepped:Connect(function(dt)
 	end
 end)
 
-print("PSM Matrix Hub v2.0 - Fully Operational")
+print("PSM Matrix Hub v2.0 - Island Drag Fixed")
 --// END OF SECTION 4
+
 --// MATRIX POWER HUB - SECTION 5
 -- Extra Power Features: FPS Cap, Auto-Idle, Quick Toggle, Session Timer
 
