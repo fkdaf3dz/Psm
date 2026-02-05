@@ -27,7 +27,7 @@ local NEON_GREEN = Color3.fromRGB(57, 255, 20)
 local BLACK_BG = Color3.fromRGB(5, 5, 5)
 local DARK_BG = Color3.fromRGB(10, 10, 10)
 
---// ScreenGui (High DisplayOrder for overlay)
+--// ScreenGui
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "MatrixPowerHub"
 screenGui.ResetOnSpawn = false
@@ -46,6 +46,7 @@ local minimalGFX = false
 local extremeGFX = false
 local lastAFKTime = 0
 local fpsValue = 60
+local dragConnections = {} -- Track connections for cleanup
 
 --// MAIN ORB (ZIndex 200)
 local island = Instance.new("Frame")
@@ -115,20 +116,20 @@ end
 
 --// END OF SECTION 1
 --// MATRIX POWER HUB - SECTION 2
--- Full Screen Black (Covers EVERYTHING), Panel, Tabs, Content
+-- Full Screen Black, Panel (Wider), Tabs (Top), Content, Notifications
 
---// FULL SCREEN BLACK OVERLAY (ZIndex 50 - Covers entire game except UI above it)
+--// FULL SCREEN BLACK OVERLAY (ZIndex 50)
 local blackScreen = Instance.new("Frame")
 blackScreen.Name = "FullBlackScreen"
-blackScreen.Size = UDim2.new(2, 0, 2, 0) -- EXTRA LARGE to cover everything
-blackScreen.Position = UDim2.new(-0.5, 0, -0.5, 0) -- Centered oversized
+blackScreen.Size = UDim2.new(2, 0, 2, 0)
+blackScreen.Position = UDim2.new(-0.5, 0, -0.5, 0)
 blackScreen.BackgroundColor3 = Color3.new(0, 0, 0)
 blackScreen.BorderSizePixel = 0
 blackScreen.ZIndex = 50
 blackScreen.Visible = false
 blackScreen.Parent = screenGui
 
---// EXPANDED PANEL (WIDER - ZIndex 60, Above black screen)
+--// EXPANDED PANEL (ZIndex 60)
 local expandedContainer = Instance.new("Frame")
 expandedContainer.Name = "MatrixPanel"
 expandedContainer.Size = UDim2.new(0, 450, 0, 400)
@@ -136,7 +137,7 @@ expandedContainer.BackgroundColor3 = DARK_BG
 expandedContainer.BorderSizePixel = 0
 expandedContainer.Visible = false
 expandedContainer.ClipsDescendants = true
-expandedContainer.ZIndex = 60 -- Above blackScreen (50)
+expandedContainer.ZIndex = 60
 expandedContainer.Parent = screenGui
 
 local panelStroke = Instance.new("UIStroke")
@@ -356,7 +357,7 @@ versionText.TextTransparency = 0.7
 versionText.ZIndex = 72
 versionText.Parent = infoContent
 
---// PANIC BUTTON (ZIndex 250 - Above everything)
+--// PANIC BUTTON (ZIndex 250)
 local panicButton = Instance.new("TextButton")
 panicButton.Size = UDim2.new(0, 45, 0, 45)
 panicButton.Position = UDim2.new(1, -55, 0, 10)
@@ -365,7 +366,7 @@ panicButton.Text = "P"
 panicButton.TextColor3 = NEON_GREEN
 panicButton.TextSize = 24
 panicButton.Font = Enum.Font.GothamBold
-panicButton.ZIndex = 250 -- Above black screen
+panicButton.ZIndex = 250
 panicButton.Visible = false
 panicButton.Parent = screenGui
 
@@ -423,10 +424,130 @@ notifyText.Parent = autoNotify
 
 --// END OF SECTION 2
 --// MATRIX POWER HUB - SECTION 3
---// MATRIX POWER HUB - SECTION 4
--- Functions, Graphics (EFFICIENT + GRAY MODE), FPS, Rain Animation
+-- Toggle Creation, Tab Logic, Animation Functions
 
---// Expand/Collapse
+--// Toggle Creator (Whole button fill animation)
+local function createToggle(parent, name, yPos, labelText)
+	local frame = Instance.new("Frame")
+	frame.Name = name .. "Frame"
+	frame.Size = UDim2.new(1, -20, 0, 60)
+	frame.Position = UDim2.new(0, 10, 0, yPos)
+	frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	frame.BorderSizePixel = 0
+	frame.ZIndex = 72
+	frame.Parent = parent
+	
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = frame
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = NEON_GREEN
+	stroke.Thickness = 1
+	stroke.Parent = frame
+	
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(0.6, 0, 1, 0)
+	label.Position = UDim2.new(0, 15, 0, 0)
+	label.BackgroundTransparency = 1
+	label.Text = labelText
+	label.TextColor3 = NEON_GREEN
+	label.TextSize = 13
+	label.Font = Enum.Font.Code
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.ZIndex = 74
+	label.Parent = frame
+	
+	local btn = Instance.new("TextButton")
+	btn.Name = "ToggleBtn"
+	btn.Size = UDim2.new(0, 80, 0, 30)
+	btn.Position = UDim2.new(1, -95, 0.5, -15)
+	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	btn.Text = ""
+	btn.AutoButtonColor = false
+	btn.ZIndex = 73
+	btn.Parent = frame
+	
+	local btnCorner = Instance.new("UICorner")
+	btnCorner.CornerRadius = UDim.new(0, 15)
+	btnCorner.Parent = btn
+	
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.new(0, 0, 1, 0)
+	fill.Position = UDim2.new(0, 0, 0, 0)
+	fill.BackgroundColor3 = NEON_GREEN
+	fill.BorderSizePixel = 0
+	fill.ZIndex = 74
+	fill.Parent = btn
+	
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0, 15)
+	fillCorner.Parent = fill
+	
+	local status = Instance.new("TextLabel")
+	status.Size = UDim2.new(1, 0, 1, 0)
+	status.BackgroundTransparency = 1
+	status.Text = "OFF"
+	status.TextColor3 = Color3.fromRGB(150, 150, 150)
+	status.TextSize = 12
+	status.Font = Enum.Font.GothamBold
+	status.ZIndex = 75
+	status.Parent = btn
+	
+	return {Frame = frame, Button = btn, Fill = fill, Status = status}
+end
+
+--// Animation Function (Left to Right Green ON, Right to Left Gray OFF)
+local function animateToggle(toggleData, isOn)
+	if not toggleData then return end
+	if isOn then
+		TweenService:Create(toggleData.Fill, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+			{Size = UDim2.new(1, 0, 1, 0)}):Play()
+		toggleData.Status.Text = "ON"
+		toggleData.Status.TextColor3 = DARK_BG
+	else
+		TweenService:Create(toggleData.Fill, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+			{Size = UDim2.new(0, 0, 1, 0)}):Play()
+		toggleData.Status.Text = "OFF"
+		toggleData.Status.TextColor3 = Color3.fromRGB(150, 150, 150)
+	end
+end
+
+--// Create Toggles
+local normalToggle = createToggle(psmContent, "Normal", 80, "NORMAL POWER SAVE")
+local maxToggle = createToggle(psmContent, "Max", 150, "MAXIMUM POWER SAVE")
+local antiAfkToggle = createToggle(otherContent, "AntiAFK", 10, "ANTI-AFK")
+local minGfxToggle = createToggle(otherContent, "MinGFX", 80, "MINIMAL GRAPHICS")
+local extremeToggle = createToggle(otherContent, "Extreme", 150, "EXTREME POTATO MODE")
+
+--// Tab Switching Function
+local function switchTab(tabName)
+	currentTab = tabName
+	psmContent.Visible = (tabName == "PSM")
+	otherContent.Visible = (tabName == "OTHER")
+	infoContent.Visible = (tabName == "INFO")
+	
+	psmTabBtn.BackgroundColor3 = (tabName == "PSM") and NEON_GREEN or Color3.fromRGB(30, 30, 30)
+	psmTabBtn.TextColor3 = (tabName == "PSM") and DARK_BG or NEON_GREEN
+	
+	otherTabBtn.BackgroundColor3 = (tabName == "OTHER") and NEON_GREEN or Color3.fromRGB(30, 30, 30)
+	otherTabBtn.TextColor3 = (tabName == "OTHER") and DARK_BG or NEON_GREEN
+	
+	infoTabBtn.BackgroundColor3 = (tabName == "INFO") and NEON_GREEN or Color3.fromRGB(30, 30, 30)
+	infoTabBtn.TextColor3 = (tabName == "INFO") and DARK_BG or NEON_GREEN
+end
+
+--// Connect Tab Buttons
+psmTabBtn.MouseButton1Click:Connect(function() switchTab("PSM") end)
+otherTabBtn.MouseButton1Click:Connect(function() switchTab("OTHER") end)
+infoTabBtn.MouseButton1Click:Connect(function() switchTab("INFO") end)
+
+--// END OF SECTION 3
+--// MATRIX POWER HUB - SECTION 4
+-- Functions, Graphics (EFFICIENT + GRAY MODE), Input Handling, FPS, Rain
+
+--// Expand/Collapse Functions (Defined BEFORE input handling)
 function expandIsland()
 	isExpanded = true
 	islandPosBeforeExpand = island.Position
@@ -451,120 +572,79 @@ function collapseIsland()
 	end
 end
 
---// EFFICIENT Power Save Functions with GRAY MODE
-local processedObjects = {}
+--// Graphics Cache
 local originalProperties = {}
+local isProcessingGraphics = false
 
---// EXTREME GRAPHICS - Everything GRAY and textureless for max performance
+--// EXTREME GRAPHICS - Gray Mode + Performance
 function setExtremeGraphics(enabled)
+	if isProcessingGraphics then return end
+	isProcessingGraphics = true
+	
 	if enabled then
-		-- Settings that actually reduce CPU/GPU load
 		pcall(function() 
 			settings().Rendering.QualityLevel = 1 
 			settings().Rendering.EnableFRM = false
 		end)
 		
-		-- Aggressive lighting reduction
 		Lighting.GlobalShadows = false
-		Lighting.Brightness = 0.05 -- Almost black
-		Lighting.Ambient = Color3.new(0.2, 0.2, 0.2) -- Dark gray
+		Lighting.Brightness = 0.05
+		Lighting.Ambient = Color3.new(0.2, 0.2, 0.2)
 		Lighting.OutdoorAmbient = Color3.new(0.2, 0.2, 0.2)
-		Lighting.FogEnd = 30 -- Very short render distance
-		Lighting.FogColor = Color3.new(0.1, 0.1, 0.1) -- Gray fog
+		Lighting.FogEnd = 30
+		Lighting.FogColor = Color3.new(0.1, 0.1, 0.1)
 		
-		-- Camera settings
-		camera.FieldOfView = 50 -- Lower FOV = less rendering
+		camera.FieldOfView = 50
 		
-		-- Process workspace in CHUNKS to prevent overheating
+		-- Efficient chunked processing
 		task.spawn(function()
 			local descendants = workspace:GetDescendants()
-			local batchSize = 50
-			local waitTime = 0.05
-			
 			for i = 1, #descendants do
 				local v = descendants[i]
 				if v then
-					-- Store original properties
 					if not originalProperties[v] then
 						originalProperties[v] = {}
 					end
 					
-					-- GRAY MODE: Make all parts gray and plastic
 					if v:IsA("BasePart") then
 						originalProperties[v].Material = v.Material
 						originalProperties[v].Color = v.Color
 						v.Material = Enum.Material.SmoothPlastic
-						v.Color = Color3.fromRGB(100, 100, 100) -- GRAY
+						v.Color = Color3.fromRGB(100, 100, 100)
 						
-						-- Special handling for MeshParts
 						if v:IsA("MeshPart") then
 							originalProperties[v].RenderFidelity = v.RenderFidelity
 							originalProperties[v].TextureID = v.TextureID
 							v.RenderFidelity = Enum.RenderFidelity.Performance
-							v.TextureID = "" -- Remove mesh textures
+							v.TextureID = ""
 						end
 					end
 					
-					-- Remove ALL textures/decals completely
 					if v:IsA("Texture") or v:IsA("Decal") then
 						originalProperties[v].Transparency = v.Transparency
 						originalProperties[v].Texture = v.Texture
 						v.Transparency = 1
-						v.Texture = "" -- Clear texture data
+						v.Texture = ""
 					end
 					
-					-- Remove SurfaceGuis and BillboardGuis
-					if v:IsA("SurfaceGui") or v:IsA("BillboardGui") or v:IsA("ScreenGui") then
-						if v.Parent ~= screenGui then -- Don't break our own GUI
-							originalProperties[v].Enabled = v.Enabled
-							v.Enabled = false
-						end
+					if (v:IsA("SurfaceGui") or v:IsA("BillboardGui")) and v.Parent ~= screenGui then
+						originalProperties[v].Enabled = v.Enabled
+						v.Enabled = false
 					end
 					
-					-- Disable effects
-					if v:IsA("ParticleEmitter") then
-						originalProperties[v].Enabled = v.Enabled
-						v.Enabled = false
-					elseif v:IsA("Beam") or v:IsA("Trail") then
-						originalProperties[v].Enabled = v.Enabled
-						v.Enabled = false
-					elseif v:IsA("PointLight") or v:IsA("SpotLight") or v:IsA("SurfaceLight") then
-						originalProperties[v].Enabled = v.Enabled
-						v.Enabled = false
-					elseif v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") then
+					if v:IsA("ParticleEmitter") or v:IsA("Beam") or v:IsA("Trail") or 
+					   v:IsA("PointLight") or v:IsA("SpotLight") or v:IsA("SurfaceLight") or
+					   v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") then
 						originalProperties[v].Enabled = v.Enabled
 						v.Enabled = false
 					end
 				end
 				
-				-- Yield to prevent overheating
-				if i % batchSize == 0 then
-					task.wait(waitTime)
-				end
+				if i % 50 == 0 then task.wait(0.05) end
 			end
+			isProcessingGraphics = false
 		end)
-		
-		-- Reduce character detail
-		pcall(function()
-			local character = player.Character
-			if character then
-				for _, part in ipairs(character:GetDescendants()) do
-					if part:IsA("BasePart") then
-						part.Material = Enum.Material.SmoothPlastic
-						part.Color = Color3.fromRGB(100, 100, 100) -- Gray character too
-					end
-					if part:IsA("Decal") or part:IsA("Texture") then
-						part.Transparency = 1
-					end
-					if part:IsA("ParticleEmitter") then
-						part.Enabled = false
-					end
-				end
-			end
-		end)
-		
 	else
-		-- RESTORE original settings
 		pcall(function() 
 			settings().Rendering.QualityLevel = 10 
 			settings().Rendering.EnableFRM = true
@@ -575,16 +655,13 @@ function setExtremeGraphics(enabled)
 		Lighting.Ambient = Color3.fromRGB(127, 127, 127)
 		Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
 		Lighting.FogEnd = 10000
-		Lighting.FogColor = Color3.new(0.75, 0.75, 0.75)
 		camera.FieldOfView = 70
 		
-		-- Restore workspace properties in chunks
 		task.spawn(function()
 			local count = 0
 			for obj, props in pairs(originalProperties) do
 				if obj and obj.Parent then
 					pcall(function()
-						-- Restore material and color
 						if props.Material then obj.Material = props.Material end
 						if props.Color then obj.Color = props.Color end
 						if props.TextureID then obj.TextureID = props.TextureID end
@@ -595,20 +672,18 @@ function setExtremeGraphics(enabled)
 					end)
 				end
 				count = count + 1
-				if count % 100 == 0 then
-					task.wait(0.03)
-				end
+				if count % 100 == 0 then task.wait(0.03) end
 			end
 			originalProperties = {}
+			isProcessingGraphics = false
 		end)
 	end
 end
 
---// MINIMAL GRAPHICS - Lighter version (keeps colors, removes effects)
+--// MINIMAL GRAPHICS
 function setMinimalGraphics(enabled)
 	if enabled then
 		pcall(function() settings().Rendering.QualityLevel = 1 end)
-		
 		Lighting.GlobalShadows = false
 		Lighting.Brightness = 0.5
 		Lighting.FogEnd = 100
@@ -629,7 +704,7 @@ function setMinimalGraphics(enabled)
 					elseif v:IsA("Decal") or v:IsA("Texture") then
 						if not originalProperties[v] then originalProperties[v] = {} end
 						originalProperties[v].Transparency = v.Transparency
-						v.Transparency = 1 -- Hide textures but don't clear them
+						v.Transparency = 1
 					end
 				end
 				if i % 100 == 0 then task.wait(0.03) end
@@ -659,6 +734,65 @@ function setMinimalGraphics(enabled)
 	end
 end
 
+--// Toggle Handlers
+normalToggle.Button.MouseButton1Click:Connect(function()
+	local newState = not (activePowerMode == "NORMAL")
+	activePowerMode = newState and "NORMAL" or "NONE"
+	animateToggle(normalToggle, newState)
+	if newState then
+		animateToggle(maxToggle, false)
+		blackScreen.Visible = true
+		panicButton.Visible = true
+		setMinimalGraphics(true)
+	else
+		blackScreen.Visible = false
+		panicButton.Visible = false
+		setMinimalGraphics(false)
+	end
+end)
+
+maxToggle.Button.MouseButton1Click:Connect(function()
+	local newState = not (activePowerMode == "MAX")
+	activePowerMode = newState and "MAX" or "NONE"
+	animateToggle(maxToggle, newState)
+	if newState then
+		animateToggle(normalToggle, false)
+		blackScreen.Visible = true
+		panicButton.Visible = true
+		setExtremeGraphics(true)
+	else
+		blackScreen.Visible = false
+		panicButton.Visible = false
+		setExtremeGraphics(false)
+	end
+end)
+
+antiAfkToggle.Button.MouseButton1Click:Connect(function()
+	antiAFKEnabled = not antiAFKEnabled
+	animateToggle(antiAfkToggle, antiAFKEnabled)
+	if antiAFKEnabled then lastAFKTime = tick() end
+end)
+
+minGfxToggle.Button.MouseButton1Click:Connect(function()
+	minimalGFX = not minimalGFX
+	animateToggle(minGfxToggle, minimalGFX)
+	if minimalGFX then
+		animateToggle(extremeToggle, false)
+		extremeGFX = false
+	end
+	setMinimalGraphics(minimalGFX)
+end)
+
+extremeToggle.Button.MouseButton1Click:Connect(function()
+	extremeGFX = not extremeGFX
+	animateToggle(extremeToggle, extremeGFX)
+	if extremeGFX then
+		animateToggle(minGfxToggle, false)
+		minimalGFX = false
+	end
+	setExtremeGraphics(extremeGFX)
+end)
+
 --// Panic Button
 panicButton.MouseButton1Click:Connect(function()
 	activePowerMode = "NONE"
@@ -678,7 +812,91 @@ panicButton.MouseButton1Click:Connect(function()
 	setMinimalGraphics(false)
 end)
 
---// FPS & Auto-Detect
+--// Close Button
+closeButton.MouseButton1Click:Connect(function()
+	if isExpanded then collapseIsland() end
+end)
+
+--// ISLAND INPUT HANDLING (Fixed drag + click)
+local isDraggingIsland = false
+local dragStart = nil
+local startPos = nil
+local dragThreshold = 5
+
+island.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.UserInputType ~= Enum.UserInputType.Touch and 
+	   input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+		return
+	end
+	
+	isDraggingIsland = false
+	dragStart = input.Position
+	startPos = island.AbsolutePosition
+	
+	local moveConnection, endConnection
+	
+	moveConnection = UserInputService.InputChanged:Connect(function(moveInput)
+		if moveInput == input then
+			local delta = (moveInput.Position - dragStart).Magnitude
+			if delta > dragThreshold then
+				isDraggingIsland = true
+				local deltaPos = moveInput.Position - dragStart
+				island.Position = UDim2.new(0, startPos.X + deltaPos.X, 0, startPos.Y + deltaPos.Y)
+			end
+		end
+	end)
+	
+	endConnection = UserInputService.InputEnded:Connect(function(endInput)
+		if endInput == input then
+			moveConnection:Disconnect()
+			endConnection:Disconnect()
+			
+			if not isDraggingIsland and not isExpanded then
+				expandIsland()
+			end
+		end
+	end)
+end)
+
+--// PANEL DRAG HANDLING
+local isDraggingPanel = false
+
+headerBar.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.UserInputType ~= Enum.UserInputType.Touch and 
+	   input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+		return
+	end
+	
+	isDraggingPanel = false
+	dragStart = input.Position
+	startPos = expandedContainer.AbsolutePosition
+	
+	local moveConnection, endConnection
+	
+	moveConnection = UserInputService.InputChanged:Connect(function(moveInput)
+		if moveInput == input then
+			local delta = (moveInput.Position - dragStart).Magnitude
+			if delta > dragThreshold then
+				isDraggingPanel = true
+				local deltaPos = moveInput.Position - dragStart
+				local newPos = UDim2.new(0, startPos.X + deltaPos.X, 0, startPos.Y + deltaPos.Y)
+				expandedContainer.Position = newPos
+				savedPanelPos = newPos
+			end
+		end
+	end)
+	
+	endConnection = UserInputService.InputEnded:Connect(function(endInput)
+		if endInput == input then
+			moveConnection:Disconnect()
+			endConnection:Disconnect()
+		end
+	end)
+end)
+
+--// FPS Counter & Anti-AFK (Every 5 min with 0.2 movement)
 local lastCalcTime = tick()
 local frameAccumulator = 0
 local notifyShown = false
@@ -707,7 +925,7 @@ RunService.Heartbeat:Connect(function()
 		end
 	end
 	
-	--// ANTI-AFK - Every 5 minutes with 0.2 camera movement
+	-- Anti-AFK: Every 5 minutes (300 seconds), 0.2 rad movement
 	if antiAFKEnabled and (now - lastAFKTime >= 300) then
 		pcall(function()
 			camera.CFrame = camera.CFrame * CFrame.Angles(0, math.rad(0.2), 0)
@@ -718,7 +936,7 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
---// Panic Pulse
+--// Panic Button Pulse
 task.spawn(function()
 	while true do
 		if panicButton.Visible then
@@ -734,9 +952,16 @@ task.spawn(function()
 	end
 end)
 
---// Rain Animation (Optimized)
-RunService.RenderStepped:Connect(function()
-	-- Panel Rain
+--// Rain Animation (Optimized - skip frames when power saving)
+local rainUpdateInterval = 0
+RunService.RenderStepped:Connect(function(dt)
+	-- Slow down rain when in power save mode to save CPU
+	if activePowerMode ~= "NONE" then
+		rainUpdateInterval = rainUpdateInterval + dt
+		if rainUpdateInterval < 0.05 then return end -- 20fps instead of 60fps
+		rainUpdateInterval = 0
+	end
+	
 	if expandedContainer.Visible then
 		for i = 1, #rainColumns do
 			local col = rainColumns[i]
@@ -751,7 +976,6 @@ RunService.RenderStepped:Connect(function()
 		end
 	end
 	
-	-- Island Rain
 	if island.Visible then
 		for i = 1, #bgRainColumns do
 			local col = bgRainColumns[i]
@@ -779,5 +1003,201 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
-print("PSM Matrix Hub v2.0 - Gray Mode Enabled")
+print("PSM Matrix Hub v2.0 - Fully Operational")
 --// END OF SECTION 4
+--// MATRIX POWER HUB - SECTION 5
+-- Extra Power Features: FPS Cap, Auto-Idle, Quick Toggle, Session Timer
+
+--// FPS CAP FEATURE (Saves massive battery)
+local fpsCapEnabled = false
+local targetFPS = 30
+local lastFrameTime = 0
+
+local function setFPSCap(enabled, fps)
+	fpsCapEnabled = enabled
+	targetFPS = fps or 30
+	if enabled then
+		print("FPS capped to " .. targetFPS)
+	else
+		print("FPS uncapped")
+	end
+end
+
+--// Hook into Heartbeat for FPS capping
+RunService.Heartbeat:Connect(function()
+	if fpsCapEnabled then
+		local currentTime = tick()
+		local delta = currentTime - lastFrameTime
+		local targetDelta = 1 / targetFPS
+		
+		if delta < targetDelta then
+			-- Sleep to cap FPS
+			task.wait(targetDelta - delta)
+		end
+		lastFrameTime = tick()
+	end
+end)
+
+--// AUTO-IDLE DETECTION (Enable PSM after inactivity)
+local idleTime = 0
+local lastInputTime = tick()
+local idleThreshold = 300 -- 5 minutes
+local autoIdleEnabled = false
+
+-- Track any input to reset idle timer
+UserInputService.InputBegan:Connect(function()
+	lastInputTime = tick()
+	idleTime = 0
+end)
+
+UserInputService.InputChanged:Connect(function()
+	lastInputTime = tick()
+	idleTime = 0
+end)
+
+-- Check idle status every second
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if autoIdleEnabled and activePowerMode == "NONE" then
+			idleTime = tick() - lastInputTime
+			if idleTime >= idleThreshold then
+				-- Auto-enable Normal PSM after idle
+				normalToggle.Button.MouseButton1Click:Fire()
+				-- Show notification
+				autoNotify.Text = "Auto Power Save Enabled (Idle)"
+				autoNotify.Visible = true
+				TweenService:Create(autoNotify, TweenInfo.new(0.5), {Position = UDim2.new(0, 10, 1, -55)}):Play()
+				task.delay(3, function()
+					TweenService:Create(autoNotify, TweenInfo.new(0.5), {Position = UDim2.new(0, 10, 1, 50)}):Play()
+					task.wait(0.5)
+					if autoNotify.Text == "Auto Power Save Enabled (Idle)" then
+						autoNotify.Visible = false
+						autoNotify.Text = "Low FPS Detected - Enable Power Save?"
+					end
+				end)
+			end
+		end
+	end
+end)
+
+--// DOUBLE-TAP ISLAND (Quick Toggle PSM)
+local lastTapTime = 0
+local doubleTapThreshold = 0.3 -- 300ms between taps
+
+island.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.UserInputType ~= Enum.UserInputType.Touch and 
+	   input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+		return
+	end
+	
+	local currentTime = tick()
+	local timeSinceLastTap = currentTime - lastTapTime
+	lastTapTime = currentTime
+	
+	if timeSinceLastTap <= doubleTapThreshold and not isExpanded then
+		-- Double tap detected - toggle last used PSM or Normal
+		if activePowerMode == "NONE" then
+			normalToggle.Button.MouseButton1Click:Fire()
+		else
+			-- Turn off current PSM
+			if activePowerMode == "NORMAL" then
+				normalToggle.Button.MouseButton1Click:Fire()
+			elseif activePowerMode == "MAX" then
+				maxToggle.Button.MouseButton1Click:Fire()
+			end
+		end
+	end
+end)
+
+--// SESSION TIMER (Track power saving time)
+local sessionStartTime = nil
+local sessionLabel = nil
+
+-- Add session timer to Info tab (without changing layout)
+local sessionFrame = Instance.new("Frame")
+sessionFrame.Size = UDim2.new(1, 0, 0, 25)
+sessionFrame.Position = UDim2.new(0, 0, 0.35, 95)
+sessionFrame.BackgroundTransparency = 1
+sessionFrame.ZIndex = 72
+sessionFrame.Parent = infoContent
+
+sessionLabel = Instance.new("TextLabel")
+sessionLabel.Size = UDim2.new(1, 0, 1, 0)
+sessionLabel.BackgroundTransparency = 1
+sessionLabel.Text = "Power Save Time: 00:00"
+sessionLabel.TextColor3 = NEON_GREEN
+sessionLabel.TextSize = 12
+sessionLabel.Font = Enum.Font.Code
+sessionLabel.ZIndex = 73
+sessionLabel.Parent = sessionFrame
+
+-- Update timer
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if activePowerMode ~= "NONE" and sessionStartTime then
+			local elapsed = tick() - sessionStartTime
+			local minutes = math.floor(elapsed / 60)
+			local seconds = math.floor(elapsed % 60)
+			sessionLabel.Text = string.format("Power Save Time: %02d:%02d", minutes, seconds)
+		elseif activePowerMode == "NONE" then
+			sessionStartTime = nil
+			sessionLabel.Text = "Power Save Time: 00:00"
+		end
+	end
+end)
+
+-- Hook into toggle functions to track session start
+local originalNormalToggle = normalToggle.Button.MouseButton1Click
+local originalMaxToggle = maxToggle.Button.MouseButton1Click
+
+normalToggle.Button.MouseButton1Click:Connect(function()
+	if activePowerMode ~= "NORMAL" then
+		sessionStartTime = tick()
+	end
+end)
+
+maxToggle.Button.MouseButton1Click:Connect(function()
+	if activePowerMode ~= "MAX" then
+		sessionStartTime = tick()
+	end
+end)
+
+--// BATTERY SAVER MODE (Reduce frame rate when not focused)
+local isWindowFocused = true
+
+UserInputService.WindowFocusReleased:Connect(function()
+	isWindowFocused = false
+	if activePowerMode ~= "NONE" then
+		-- Reduce to 10fps when tabbed out and in PSM
+		setFPSCap(true, 10)
+	end
+end)
+
+UserInputService.WindowFocused:Connect(function()
+	isWindowFocused = true
+	if activePowerMode ~= "NONE" and fpsCapEnabled then
+		-- Restore to 30fps when focused
+		setFPSCap(true, 30)
+	end
+end)
+
+--// MEMORY CLEANUP (Periodic garbage collection)
+task.spawn(function()
+	while true do
+		task.wait(300) -- Every 5 minutes
+		if activePowerMode ~= "NONE" then
+			-- Force garbage collection when in power save
+			for i = 1, 3 do
+				task.wait(0.1)
+				collectgarbage("collect")
+			end
+			print("Memory optimized")
+		end
+	end
+end)
+
+print("PSM Matrix Hub Section 5 Loaded - Extra Power Features Active")
+--// END OF SECTION 5
