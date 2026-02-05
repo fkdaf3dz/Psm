@@ -423,279 +423,10 @@ notifyText.Parent = autoNotify
 
 --// END OF SECTION 2
 --// MATRIX POWER HUB - SECTION 3
--- Toggle Creation, Input Handling, Tab Logic, Graphics Integration
-
---// Toggle Creator
-local function createToggle(parent, name, yPos, labelText)
-	local frame = Instance.new("Frame")
-	frame.Name = name .. "Frame"
-	frame.Size = UDim2.new(1, -20, 0, 60)
-	frame.Position = UDim2.new(0, 10, 0, yPos)
-	frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-	frame.BorderSizePixel = 0
-	frame.ZIndex = 72
-	frame.Parent = parent
-	
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = frame
-	
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = NEON_GREEN
-	stroke.Thickness = 1
-	stroke.Parent = frame
-	
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(0.6, 0, 1, 0)
-	label.Position = UDim2.new(0, 15, 0, 0)
-	label.BackgroundTransparency = 1
-	label.Text = labelText
-	label.TextColor3 = NEON_GREEN
-	label.TextSize = 13
-	label.Font = Enum.Font.Code
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.ZIndex = 74
-	label.Parent = frame
-	
-	local btn = Instance.new("TextButton")
-	btn.Name = "ToggleBtn"
-	btn.Size = UDim2.new(0, 80, 0, 30)
-	btn.Position = UDim2.new(1, -95, 0.5, -15)
-	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-	btn.Text = ""
-	btn.AutoButtonColor = false
-	btn.ZIndex = 73
-	btn.Parent = frame
-	
-	local btnCorner = Instance.new("UICorner")
-	btnCorner.CornerRadius = UDim.new(0, 15)
-	btnCorner.Parent = btn
-	
-	local fill = Instance.new("Frame")
-	fill.Name = "Fill"
-	fill.Size = UDim2.new(0, 0, 1, 0)
-	fill.Position = UDim2.new(0, 0, 0, 0)
-	fill.BackgroundColor3 = NEON_GREEN
-	fill.BorderSizePixel = 0
-	fill.ZIndex = 74
-	fill.Parent = btn
-	
-	local fillCorner = Instance.new("UICorner")
-	fillCorner.CornerRadius = UDim.new(0, 15)
-	fillCorner.Parent = fill
-	
-	local status = Instance.new("TextLabel")
-	status.Size = UDim2.new(1, 0, 1, 0)
-	status.BackgroundTransparency = 1
-	status.Text = "OFF"
-	status.TextColor3 = Color3.fromRGB(150, 150, 150)
-	status.TextSize = 12
-	status.Font = Enum.Font.GothamBold
-	status.ZIndex = 75
-	status.Parent = btn
-	
-	return {Frame = frame, Button = btn, Fill = fill, Status = status}
-end
-
---// Animation Function
-local function animateToggle(toggleData, isOn)
-	if not toggleData then return end
-	if isOn then
-		TweenService:Create(toggleData.Fill, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
-			{Size = UDim2.new(1, 0, 1, 0)}):Play()
-		toggleData.Status.Text = "ON"
-		toggleData.Status.TextColor3 = DARK_BG
-	else
-		TweenService:Create(toggleData.Fill, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
-			{Size = UDim2.new(0, 0, 1, 0)}):Play()
-		toggleData.Status.Text = "OFF"
-		toggleData.Status.TextColor3 = Color3.fromRGB(150, 150, 150)
-	end
-end
-
---// Create Toggles
-local normalToggle = createToggle(psmContent, "Normal", 80, "NORMAL POWER SAVE")
-local maxToggle = createToggle(psmContent, "Max", 150, "MAXIMUM POWER SAVE")
-local antiAfkToggle = createToggle(otherContent, "AntiAFK", 10, "ANTI-AFK")
-local minGfxToggle = createToggle(otherContent, "MinGFX", 80, "MINIMAL GRAPHICS")
-local extremeToggle = createToggle(otherContent, "Extreme", 150, "EXTREME POTATO MODE")
-
---// Tab Switching
-local function switchTab(tabName)
-	currentTab = tabName
-	psmContent.Visible = (tabName == "PSM")
-	otherContent.Visible = (tabName == "OTHER")
-	infoContent.Visible = (tabName == "INFO")
-	
-	psmTabBtn.BackgroundColor3 = (tabName == "PSM") and NEON_GREEN or Color3.fromRGB(30, 30, 30)
-	psmTabBtn.TextColor3 = (tabName == "PSM") and DARK_BG or NEON_GREEN
-	
-	otherTabBtn.BackgroundColor3 = (tabName == "OTHER") and NEON_GREEN or Color3.fromRGB(30, 30, 30)
-	otherTabBtn.TextColor3 = (tabName == "OTHER") and DARK_BG or NEON_GREEN
-	
-	infoTabBtn.BackgroundColor3 = (tabName == "INFO") and NEON_GREEN or Color3.fromRGB(30, 30, 30)
-	infoTabBtn.TextColor3 = (tabName == "INFO") and DARK_BG or NEON_GREEN
-end
-
-psmTabBtn.MouseButton1Click:Connect(function() switchTab("PSM") end)
-otherTabBtn.MouseButton1Click:Connect(function() switchTab("OTHER") end)
-infoTabBtn.MouseButton1Click:Connect(function() switchTab("INFO") end)
-
---// Input Handling
-local isDraggingIsland = false
-local isDraggingPanel = false
-local dragStart = nil
-local startPos = nil
-local dragThreshold = 5
-local currentInput = nil
-
-island.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.Touch or 
-	   input.UserInputType == Enum.UserInputType.MouseButton1 then
-		isDraggingIsland = false
-		dragStart = input.Position
-		local absPos = island.AbsolutePosition
-		startPos = {X = absPos.X, Y = absPos.Y}
-		currentInput = input
-		
-		local moveConnection
-		local endConnection
-		
-		moveConnection = UserInputService.InputChanged:Connect(function(moveInput)
-			if moveInput == currentInput then
-				local delta = (moveInput.Position - dragStart).magnitude
-				if delta > dragThreshold then
-					isDraggingIsland = true
-					local deltaPos = moveInput.Position - dragStart
-					island.Position = UDim2.new(0, startPos.X + deltaPos.X, 0, startPos.Y + deltaPos.Y)
-				end
-			end
-		end)
-		
-		endConnection = UserInputService.InputEnded:Connect(function(endInput)
-			if endInput == currentInput then
-				moveConnection:Disconnect()
-				endConnection:Disconnect()
-				currentInput = nil
-				if not isDraggingIsland and not isExpanded then
-					expandIsland()
-				end
-			end
-		end)
-	end
-end)
-
-headerBar.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.Touch or 
-	   input.UserInputType == Enum.UserInputType.MouseButton1 then
-		isDraggingPanel = false
-		dragStart = input.Position
-		local absPos = expandedContainer.AbsolutePosition
-		startPos = {X = absPos.X, Y = absPos.Y}
-		currentInput = input
-		
-		local moveConnection
-		local endConnection
-		
-		moveConnection = UserInputService.InputChanged:Connect(function(moveInput)
-			if moveInput == currentInput then
-				local delta = (moveInput.Position - dragStart).magnitude
-				if delta > dragThreshold then
-					isDraggingPanel = true
-					local deltaPos = moveInput.Position - dragStart
-					local newPos = UDim2.new(0, startPos.X + deltaPos.X, 0, startPos.Y + deltaPos.Y)
-					expandedContainer.Position = newPos
-					savedPanelPos = newPos
-				end
-			end
-		end)
-		
-		endConnection = UserInputService.InputEnded:Connect(function(endInput)
-			if endInput == currentInput then
-				moveConnection:Disconnect()
-				endConnection:Disconnect()
-				currentInput = nil
-			end
-		end)
-	end
-end)
-
-closeButton.MouseButton1Click:Connect(function()
-	if isExpanded then collapseIsland() end
-end)
-
---// NORMAL PSM - Enables Minimal Graphics + Black Screen (Island stays visible!)
-normalToggle.Button.MouseButton1Click:Connect(function()
-	local newState = not (activePowerMode == "NORMAL")
-	activePowerMode = newState and "NORMAL" or "NONE"
-	animateToggle(normalToggle, newState)
-	
-	if newState then
-		-- Turn on Normal PSM
-		animateToggle(maxToggle, false)
-		blackScreen.Visible = true
-		panicButton.Visible = true
-		setMinimalGraphics(true) -- Enable minimal graphics
-	else
-		-- Turn off
-		blackScreen.Visible = false
-		panicButton.Visible = false
-		setMinimalGraphics(false) -- Disable minimal graphics
-	end
-end)
-
---// MAX PSM - Enables Extreme Graphics + Black Screen (Island stays visible!)
-maxToggle.Button.MouseButton1Click:Connect(function()
-	local newState = not (activePowerMode == "MAX")
-	activePowerMode = newState and "MAX" or "NONE"
-	animateToggle(maxToggle, newState)
-	
-	if newState then
-		-- Turn on Max PSM
-		animateToggle(normalToggle, false)
-		blackScreen.Visible = true
-		panicButton.Visible = true
-		setExtremeGraphics(true) -- Enable extreme graphics
-	else
-		-- Turn off
-		blackScreen.Visible = false
-		panicButton.Visible = false
-		setExtremeGraphics(false) -- Disable extreme graphics
-	end
-end)
-
---// Other toggles (Anti-AFK, Graphics)
-antiAfkToggle.Button.MouseButton1Click:Connect(function()
-	antiAFKEnabled = not antiAFKEnabled
-	animateToggle(antiAfkToggle, antiAFKEnabled)
-	if antiAFKEnabled then lastAFKTime = tick() end
-end)
-
-minGfxToggle.Button.MouseButton1Click:Connect(function()
-	minimalGFX = not minimalGFX
-	animateToggle(minGfxToggle, minimalGFX)
-	if minimalGFX then
-		animateToggle(extremeToggle, false)
-		extremeGFX = false
-	end
-	setMinimalGraphics(minimalGFX)
-end)
-
-extremeToggle.Button.MouseButton1Click:Connect(function()
-	extremeGFX = not extremeGFX
-	animateToggle(extremeToggle, extremeGFX)
-	if extremeGFX then
-		animateToggle(minGfxToggle, false)
-		minimalGFX = false
-	end
-	setExtremeGraphics(extremeGFX)
-end)
-
---// END OF SECTION 3
 --// MATRIX POWER HUB - SECTION 4
--- Functions, Graphics, FPS, Rain Animation
+-- Functions, Graphics (EFFICIENT + GRAY MODE), FPS, Rain Animation
 
---// Expand/Collapse (Island NEVER hidden, stays at ZIndex 200)
+--// Expand/Collapse
 function expandIsland()
 	isExpanded = true
 	islandPosBeforeExpand = island.Position
@@ -710,7 +441,6 @@ function expandIsland()
 	end
 	
 	expandedContainer.Visible = true
-	-- island.Visible stays true! (ZIndex 200 > blackScreen 50)
 end
 
 function collapseIsland()
@@ -719,63 +449,217 @@ function collapseIsland()
 	if islandPosBeforeExpand then
 		island.Position = islandPosBeforeExpand
 	end
-	-- island stays visible
 end
 
---// Graphics Functions
+--// EFFICIENT Power Save Functions with GRAY MODE
+local processedObjects = {}
+local originalProperties = {}
+
+--// EXTREME GRAPHICS - Everything GRAY and textureless for max performance
 function setExtremeGraphics(enabled)
 	if enabled then
-		pcall(function() settings().Rendering.QualityLevel = 1 end)
-		Lighting.GlobalShadows = false
-		Lighting.Brightness = 0.3
-		Lighting.Ambient = Color3.new(0.5, 0.5, 0.5)
-		Lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
+		-- Settings that actually reduce CPU/GPU load
+		pcall(function() 
+			settings().Rendering.QualityLevel = 1 
+			settings().Rendering.EnableFRM = false
+		end)
 		
-		for _, v in ipairs(workspace:GetDescendants()) do
-			if v:IsA("ParticleEmitter") then
-				v.Enabled = false
-			elseif v:IsA("Texture") or v:IsA("Decal") then
-				v.Transparency = 1
-			elseif v:IsA("BasePart") then
-				v.Material = Enum.Material.Plastic
-			elseif v:IsA("PointLight") or v:IsA("SpotLight") or v:IsA("SurfaceLight") then
-				v.Enabled = false
+		-- Aggressive lighting reduction
+		Lighting.GlobalShadows = false
+		Lighting.Brightness = 0.05 -- Almost black
+		Lighting.Ambient = Color3.new(0.2, 0.2, 0.2) -- Dark gray
+		Lighting.OutdoorAmbient = Color3.new(0.2, 0.2, 0.2)
+		Lighting.FogEnd = 30 -- Very short render distance
+		Lighting.FogColor = Color3.new(0.1, 0.1, 0.1) -- Gray fog
+		
+		-- Camera settings
+		camera.FieldOfView = 50 -- Lower FOV = less rendering
+		
+		-- Process workspace in CHUNKS to prevent overheating
+		task.spawn(function()
+			local descendants = workspace:GetDescendants()
+			local batchSize = 50
+			local waitTime = 0.05
+			
+			for i = 1, #descendants do
+				local v = descendants[i]
+				if v then
+					-- Store original properties
+					if not originalProperties[v] then
+						originalProperties[v] = {}
+					end
+					
+					-- GRAY MODE: Make all parts gray and plastic
+					if v:IsA("BasePart") then
+						originalProperties[v].Material = v.Material
+						originalProperties[v].Color = v.Color
+						v.Material = Enum.Material.SmoothPlastic
+						v.Color = Color3.fromRGB(100, 100, 100) -- GRAY
+						
+						-- Special handling for MeshParts
+						if v:IsA("MeshPart") then
+							originalProperties[v].RenderFidelity = v.RenderFidelity
+							originalProperties[v].TextureID = v.TextureID
+							v.RenderFidelity = Enum.RenderFidelity.Performance
+							v.TextureID = "" -- Remove mesh textures
+						end
+					end
+					
+					-- Remove ALL textures/decals completely
+					if v:IsA("Texture") or v:IsA("Decal") then
+						originalProperties[v].Transparency = v.Transparency
+						originalProperties[v].Texture = v.Texture
+						v.Transparency = 1
+						v.Texture = "" -- Clear texture data
+					end
+					
+					-- Remove SurfaceGuis and BillboardGuis
+					if v:IsA("SurfaceGui") or v:IsA("BillboardGui") or v:IsA("ScreenGui") then
+						if v.Parent ~= screenGui then -- Don't break our own GUI
+							originalProperties[v].Enabled = v.Enabled
+							v.Enabled = false
+						end
+					end
+					
+					-- Disable effects
+					if v:IsA("ParticleEmitter") then
+						originalProperties[v].Enabled = v.Enabled
+						v.Enabled = false
+					elseif v:IsA("Beam") or v:IsA("Trail") then
+						originalProperties[v].Enabled = v.Enabled
+						v.Enabled = false
+					elseif v:IsA("PointLight") or v:IsA("SpotLight") or v:IsA("SurfaceLight") then
+						originalProperties[v].Enabled = v.Enabled
+						v.Enabled = false
+					elseif v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") then
+						originalProperties[v].Enabled = v.Enabled
+						v.Enabled = false
+					end
+				end
+				
+				-- Yield to prevent overheating
+				if i % batchSize == 0 then
+					task.wait(waitTime)
+				end
 			end
-		end
+		end)
+		
+		-- Reduce character detail
+		pcall(function()
+			local character = player.Character
+			if character then
+				for _, part in ipairs(character:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.Material = Enum.Material.SmoothPlastic
+						part.Color = Color3.fromRGB(100, 100, 100) -- Gray character too
+					end
+					if part:IsA("Decal") or part:IsA("Texture") then
+						part.Transparency = 1
+					end
+					if part:IsA("ParticleEmitter") then
+						part.Enabled = false
+					end
+				end
+			end
+		end)
+		
 	else
-		pcall(function() settings().Rendering.QualityLevel = 10 end)
+		-- RESTORE original settings
+		pcall(function() 
+			settings().Rendering.QualityLevel = 10 
+			settings().Rendering.EnableFRM = true
+		end)
+		
 		Lighting.GlobalShadows = true
 		Lighting.Brightness = 1
 		Lighting.Ambient = Color3.fromRGB(127, 127, 127)
 		Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
+		Lighting.FogEnd = 10000
+		Lighting.FogColor = Color3.new(0.75, 0.75, 0.75)
+		camera.FieldOfView = 70
 		
-		for _, v in ipairs(workspace:GetDescendants()) do
-			if v:IsA("ParticleEmitter") then
-				v.Enabled = true
-			elseif v:IsA("Texture") or v:IsA("Decal") then
-				v.Transparency = 0
-			elseif v:IsA("PointLight") or v:IsA("SpotLight") or v:IsA("SurfaceLight") then
-				v.Enabled = true
+		-- Restore workspace properties in chunks
+		task.spawn(function()
+			local count = 0
+			for obj, props in pairs(originalProperties) do
+				if obj and obj.Parent then
+					pcall(function()
+						-- Restore material and color
+						if props.Material then obj.Material = props.Material end
+						if props.Color then obj.Color = props.Color end
+						if props.TextureID then obj.TextureID = props.TextureID end
+						if props.RenderFidelity then obj.RenderFidelity = props.RenderFidelity end
+						if props.Transparency then obj.Transparency = props.Transparency end
+						if props.Texture then obj.Texture = props.Texture end
+						if props.Enabled ~= nil then obj.Enabled = props.Enabled end
+					end)
+				end
+				count = count + 1
+				if count % 100 == 0 then
+					task.wait(0.03)
+				end
 			end
-		end
+			originalProperties = {}
+		end)
 	end
 end
 
+--// MINIMAL GRAPHICS - Lighter version (keeps colors, removes effects)
 function setMinimalGraphics(enabled)
 	if enabled then
 		pcall(function() settings().Rendering.QualityLevel = 1 end)
+		
 		Lighting.GlobalShadows = false
 		Lighting.Brightness = 0.5
+		Lighting.FogEnd = 100
+		
+		task.spawn(function()
+			local descendants = workspace:GetDescendants()
+			for i = 1, #descendants do
+				local v = descendants[i]
+				if v then
+					if v:IsA("ParticleEmitter") then
+						if not originalProperties[v] then originalProperties[v] = {} end
+						originalProperties[v].Enabled = v.Enabled
+						v.Enabled = false
+					elseif v:IsA("PointLight") or v:IsA("SpotLight") then
+						if not originalProperties[v] then originalProperties[v] = {} end
+						originalProperties[v].Enabled = v.Enabled
+						v.Enabled = false
+					elseif v:IsA("Decal") or v:IsA("Texture") then
+						if not originalProperties[v] then originalProperties[v] = {} end
+						originalProperties[v].Transparency = v.Transparency
+						v.Transparency = 1 -- Hide textures but don't clear them
+					end
+				end
+				if i % 100 == 0 then task.wait(0.03) end
+			end
+		end)
 	else
 		if not extremeGFX then
 			pcall(function() settings().Rendering.QualityLevel = 10 end)
 			Lighting.GlobalShadows = true
 			Lighting.Brightness = 1
+			Lighting.FogEnd = 10000
+			
+			task.spawn(function()
+				local count = 0
+				for obj, props in pairs(originalProperties) do
+					if obj and obj.Parent then
+						pcall(function()
+							if props.Enabled ~= nil then obj.Enabled = props.Enabled end
+							if props.Transparency then obj.Transparency = props.Transparency end
+						end)
+					end
+					count = count + 1
+					if count % 100 == 0 then task.wait(0.03) end
+				end
+			end)
 		end
 	end
 end
 
---// Panic Button (Turns everything off)
+--// Panic Button
 panicButton.MouseButton1Click:Connect(function()
 	activePowerMode = "NONE"
 	antiAFKEnabled = false
@@ -823,11 +707,12 @@ RunService.Heartbeat:Connect(function()
 		end
 	end
 	
-	if antiAFKEnabled and (now - lastAFKTime > math.random(600, 900)) then
+	--// ANTI-AFK - Every 5 minutes with 0.2 camera movement
+	if antiAFKEnabled and (now - lastAFKTime >= 300) then
 		pcall(function()
-			camera.CFrame = camera.CFrame * CFrame.Angles(0, math.rad(0.1), 0)
+			camera.CFrame = camera.CFrame * CFrame.Angles(0, math.rad(0.2), 0)
 			task.wait(0.1)
-			camera.CFrame = camera.CFrame * CFrame.Angles(0, math.rad(-0.1), 0)
+			camera.CFrame = camera.CFrame * CFrame.Angles(0, math.rad(-0.2), 0)
 		end)
 		lastAFKTime = now
 	end
@@ -849,7 +734,7 @@ task.spawn(function()
 	end
 end)
 
---// Rain Animation
+--// Rain Animation (Optimized)
 RunService.RenderStepped:Connect(function()
 	-- Panel Rain
 	if expandedContainer.Visible then
@@ -866,7 +751,7 @@ RunService.RenderStepped:Connect(function()
 		end
 	end
 	
-	-- Island Rain (Always runs since island is always visible)
+	-- Island Rain
 	if island.Visible then
 		for i = 1, #bgRainColumns do
 			local col = bgRainColumns[i]
@@ -894,5 +779,5 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
-print("PSM Matrix Hub v2.0 - Fully Fixed")
+print("PSM Matrix Hub v2.0 - Gray Mode Enabled")
 --// END OF SECTION 4
