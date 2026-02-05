@@ -1,0 +1,898 @@
+--// MATRIX POWER HUB - SECTION 1
+-- Services, Variables, Island with Layered Binary Rain
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local camera = workspace.CurrentCamera
+
+--// Characters
+local binaryChars = "01"
+local function getRandomBinary()
+	return binaryChars:sub(math.random(1, 2), math.random(1, 2))
+end
+
+local matrixChars = "0123456789ABCDEF田由甲申甴电甶男甸甹町画甼甽甾甿畀畁畂畃畄畅畆畇畈畉畊畋界畍畎畏畐畑"
+local function getRandomChar()
+	return matrixChars:sub(math.random(1, #matrixChars), math.random(1, #matrixChars))
+end
+
+--// Colors
+local NEON_GREEN = Color3.fromRGB(57, 255, 20)
+local BLACK_BG = Color3.fromRGB(5, 5, 5)
+local DARK_BG = Color3.fromRGB(10, 10, 10)
+
+--// ScreenGui (High DisplayOrder for overlay)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MatrixPowerHub"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+screenGui.DisplayOrder = 100
+screenGui.Parent = playerGui
+
+--// State Variables
+local isExpanded = false
+local savedPanelPos = nil
+local islandPosBeforeExpand = nil
+local currentTab = "PSM"
+local activePowerMode = "NONE"
+local antiAFKEnabled = false
+local minimalGFX = false
+local extremeGFX = false
+local lastAFKTime = 0
+local fpsValue = 60
+
+--// MAIN ORB (ZIndex 200)
+local island = Instance.new("Frame")
+island.Name = "CoreIsland"
+island.Size = UDim2.new(0, 60, 0, 60)
+island.Position = UDim2.new(0.8, 0, 0.8, 0)
+island.BackgroundColor3 = BLACK_BG
+island.BorderSizePixel = 0
+island.ClipsDescendants = true
+island.ZIndex = 200
+island.Parent = screenGui
+
+local islandCorner = Instance.new("UICorner")
+islandCorner.CornerRadius = UDim.new(1, 0)
+islandCorner.Parent = island
+
+local outline = Instance.new("UIStroke")
+outline.Color = NEON_GREEN
+outline.Thickness = 3
+outline.Parent = island
+
+--// Background Rain (ZIndex 201)
+local bgRainColumns = {}
+local bgRainSpeeds = {}
+for i = 1, 5 do
+	local col = Instance.new("TextLabel")
+	col.Size = UDim2.new(0, 10, 1, 0)
+	col.Position = UDim2.new(0, 2 + (i-1)*11, 0, math.random(-40, 0))
+	col.BackgroundTransparency = 1
+	col.TextColor3 = NEON_GREEN
+	col.TextTransparency = 0.95
+	col.TextSize = 8
+	col.Font = Enum.Font.Code
+	col.TextXAlignment = Enum.TextXAlignment.Center
+	col.TextYAlignment = Enum.TextYAlignment.Top
+	col.ZIndex = 201
+	col.Parent = island
+	local str = ""
+	for j = 1, 10 do str = str .. getRandomBinary() .. "\n" end
+	col.Text = str
+	table.insert(bgRainColumns, col)
+	table.insert(bgRainSpeeds, math.random(8, 15) / 10)
+end
+
+--// Foreground Rain (ZIndex 203)
+local islandRainColumns = {}
+local islandRainSpeeds = {}
+for i = 1, 4 do
+	local col = Instance.new("TextLabel")
+	col.Size = UDim2.new(0, 14, 1, 0)
+	col.Position = UDim2.new(0, 5 + (i-1)*13, 0, math.random(-30, 0))
+	col.BackgroundTransparency = 1
+	col.TextColor3 = NEON_GREEN
+	col.TextTransparency = 0.7
+	col.TextSize = 10
+	col.Font = Enum.Font.Code
+	col.TextXAlignment = Enum.TextXAlignment.Center
+	col.TextYAlignment = Enum.TextYAlignment.Top
+	col.ZIndex = 203
+	col.Parent = island
+	local str = ""
+	for j = 1, 8 do str = str .. getRandomBinary() .. "\n" end
+	col.Text = str
+	table.insert(islandRainColumns, col)
+	table.insert(islandRainSpeeds, math.random(15, 25) / 10)
+end
+
+--// END OF SECTION 1
+--// MATRIX POWER HUB - SECTION 2
+-- Full Screen Black (Covers EVERYTHING), Panel, Tabs, Content
+
+--// FULL SCREEN BLACK OVERLAY (ZIndex 50 - Covers entire game except UI above it)
+local blackScreen = Instance.new("Frame")
+blackScreen.Name = "FullBlackScreen"
+blackScreen.Size = UDim2.new(2, 0, 2, 0) -- EXTRA LARGE to cover everything
+blackScreen.Position = UDim2.new(-0.5, 0, -0.5, 0) -- Centered oversized
+blackScreen.BackgroundColor3 = Color3.new(0, 0, 0)
+blackScreen.BorderSizePixel = 0
+blackScreen.ZIndex = 50
+blackScreen.Visible = false
+blackScreen.Parent = screenGui
+
+--// EXPANDED PANEL (WIDER - ZIndex 60, Above black screen)
+local expandedContainer = Instance.new("Frame")
+expandedContainer.Name = "MatrixPanel"
+expandedContainer.Size = UDim2.new(0, 450, 0, 400)
+expandedContainer.BackgroundColor3 = DARK_BG
+expandedContainer.BorderSizePixel = 0
+expandedContainer.Visible = false
+expandedContainer.ClipsDescendants = true
+expandedContainer.ZIndex = 60 -- Above blackScreen (50)
+expandedContainer.Parent = screenGui
+
+local panelStroke = Instance.new("UIStroke")
+panelStroke.Color = NEON_GREEN
+panelStroke.Thickness = 2
+panelStroke.Parent = expandedContainer
+
+local panelCorner = Instance.new("UICorner")
+panelCorner.CornerRadius = UDim.new(0, 8)
+panelCorner.Parent = expandedContainer
+
+--// Panel Matrix Rain (ZIndex 65)
+local rainContainer = Instance.new("Frame")
+rainContainer.Size = UDim2.new(1, 0, 1, 0)
+rainContainer.BackgroundTransparency = 1
+rainContainer.ZIndex = 65
+rainContainer.Parent = expandedContainer
+
+local rainColumns = {}
+local rainSpeeds = {}
+for i = 1, 20 do
+	local col = Instance.new("TextLabel")
+	col.Size = UDim2.new(0, 22, 1, 0)
+	col.Position = UDim2.new(0, (i-1)*22, 0, math.random(-100, 0))
+	col.BackgroundTransparency = 1
+	col.TextColor3 = NEON_GREEN
+	col.TextTransparency = 0.9
+	col.TextSize = 13
+	col.Font = Enum.Font.Code
+	col.TextXAlignment = Enum.TextXAlignment.Left
+	col.TextYAlignment = Enum.TextYAlignment.Top
+	col.ZIndex = 65
+	col.Parent = rainContainer
+	local str = ""
+	for j = 1, 30 do str = str .. getRandomChar() .. "\n" end
+	col.Text = str
+	table.insert(rainColumns, col)
+	table.insert(rainSpeeds, math.random(15, 35) / 10)
+end
+
+--// HEADER (ZIndex 70)
+local headerBar = Instance.new("Frame")
+headerBar.Size = UDim2.new(1, 0, 0, 50)
+headerBar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+headerBar.BorderSizePixel = 0
+headerBar.ZIndex = 70
+headerBar.Parent = expandedContainer
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(0, 100, 0, 30)
+titleText.Position = UDim2.new(0, 15, 0, 10)
+titleText.BackgroundTransparency = 1
+titleText.Text = "PSM"
+titleText.TextColor3 = NEON_GREEN
+titleText.TextSize = 24
+titleText.Font = Enum.Font.Code
+titleText.ZIndex = 71
+titleText.Parent = headerBar
+
+--// Close Button
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 35, 0, 35)
+closeButton.Position = UDim2.new(1, -42, 0, 7)
+closeButton.BackgroundColor3 = DARK_BG
+closeButton.Text = "×"
+closeButton.TextColor3 = NEON_GREEN
+closeButton.TextSize = 22
+closeButton.Font = Enum.Font.GothamBold
+closeButton.ZIndex = 71
+closeButton.Parent = headerBar
+
+local closeStroke = Instance.new("UIStroke")
+closeStroke.Color = NEON_GREEN
+closeStroke.Thickness = 2
+closeStroke.Parent = closeButton
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(1, 0)
+closeCorner.Parent = closeButton
+
+--// TAB BAR (Top, ZIndex 70)
+local tabBar = Instance.new("Frame")
+tabBar.Size = UDim2.new(1, -30, 0, 40)
+tabBar.Position = UDim2.new(0, 15, 0, 55)
+tabBar.BackgroundTransparency = 1
+tabBar.ZIndex = 70
+tabBar.Parent = expandedContainer
+
+local psmTabBtn = Instance.new("TextButton")
+psmTabBtn.Size = UDim2.new(0.33, -4, 1, 0)
+psmTabBtn.Position = UDim2.new(0, 0, 0, 0)
+psmTabBtn.BackgroundColor3 = NEON_GREEN
+psmTabBtn.Text = "PSM"
+psmTabBtn.TextColor3 = DARK_BG
+psmTabBtn.TextSize = 14
+psmTabBtn.Font = Enum.Font.Code
+psmTabBtn.ZIndex = 71
+psmTabBtn.Parent = tabBar
+
+local otherTabBtn = Instance.new("TextButton")
+otherTabBtn.Size = UDim2.new(0.33, -4, 1, 0)
+otherTabBtn.Position = UDim2.new(0.33, 2, 0, 0)
+otherTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+otherTabBtn.Text = "OTHER"
+otherTabBtn.TextColor3 = NEON_GREEN
+otherTabBtn.TextSize = 14
+otherTabBtn.Font = Enum.Font.Code
+otherTabBtn.ZIndex = 71
+otherTabBtn.Parent = tabBar
+
+local infoTabBtn = Instance.new("TextButton")
+infoTabBtn.Size = UDim2.new(0.33, -4, 1, 0)
+infoTabBtn.Position = UDim2.new(0.66, 4, 0, 0)
+infoTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+infoTabBtn.Text = "INFO"
+infoTabBtn.TextColor3 = NEON_GREEN
+infoTabBtn.TextSize = 14
+infoTabBtn.Font = Enum.Font.Code
+infoTabBtn.ZIndex = 71
+infoTabBtn.Parent = tabBar
+
+for _, btn in ipairs({psmTabBtn, otherTabBtn, infoTabBtn}) do
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = btn
+end
+
+--// CONTENT CONTAINER (ZIndex 70)
+local contentContainer = Instance.new("Frame")
+contentContainer.Size = UDim2.new(1, -30, 1, -105)
+contentContainer.Position = UDim2.new(0, 15, 0, 100)
+contentContainer.BackgroundTransparency = 1
+contentContainer.ZIndex = 70
+contentContainer.Parent = expandedContainer
+
+--// PSM Content
+local psmContent = Instance.new("Frame")
+psmContent.Name = "PSMContent"
+psmContent.Size = UDim2.new(1, 0, 1, 0)
+psmContent.BackgroundTransparency = 1
+psmContent.Visible = true
+psmContent.ZIndex = 71
+psmContent.Parent = contentContainer
+
+local standbyText = Instance.new("TextLabel")
+standbyText.Size = UDim2.new(1, 0, 0, 30)
+standbyText.Position = UDim2.new(0, 0, 0.3, 0)
+standbyText.BackgroundTransparency = 1
+standbyText.Text = "STANDBY_MODE_ACTIVE"
+standbyText.TextColor3 = NEON_GREEN
+standbyText.TextSize = 16
+standbyText.Font = Enum.Font.Code
+standbyText.ZIndex = 72
+standbyText.Parent = psmContent
+
+local configText = Instance.new("TextLabel")
+configText.Size = UDim2.new(1, 0, 0, 20)
+configText.Position = UDim2.new(0, 0, 0.3, 35)
+configText.BackgroundTransparency = 1
+configText.Text = "Configure power protocols..."
+configText.TextColor3 = Color3.fromRGB(100, 255, 100)
+configText.TextSize = 12
+configText.Font = Enum.Font.Code
+configText.TextTransparency = 0.5
+configText.ZIndex = 72
+configText.Parent = psmContent
+
+--// OTHER Content
+local otherContent = Instance.new("Frame")
+otherContent.Name = "OtherContent"
+otherContent.Size = UDim2.new(1, 0, 1, 0)
+otherContent.BackgroundTransparency = 1
+otherContent.Visible = false
+otherContent.ZIndex = 71
+otherContent.Parent = contentContainer
+
+--// INFO Content
+local infoContent = Instance.new("Frame")
+infoContent.Name = "InfoContent"
+infoContent.Size = UDim2.new(1, 0, 1, 0)
+infoContent.BackgroundTransparency = 1
+infoContent.Visible = false
+infoContent.ZIndex = 71
+infoContent.Parent = contentContainer
+
+local thanksText = Instance.new("TextLabel")
+thanksText.Size = UDim2.new(1, 0, 0, 30)
+thanksText.Position = UDim2.new(0, 0, 0.35, 0)
+thanksText.BackgroundTransparency = 1
+thanksText.Text = "Thanks for using"
+thanksText.TextColor3 = NEON_GREEN
+thanksText.TextSize = 18
+thanksText.Font = Enum.Font.Code
+thanksText.ZIndex = 72
+thanksText.Parent = infoContent
+
+local creditText = Instance.new("TextLabel")
+creditText.Size = UDim2.new(1, 0, 0, 25)
+creditText.Position = UDim2.new(0, 0, 0.35, 35)
+creditText.BackgroundTransparency = 1
+creditText.Text = "Made by fkdaf3dz"
+creditText.TextColor3 = Color3.fromRGB(100, 255, 100)
+creditText.TextSize = 14
+creditText.Font = Enum.Font.Code
+creditText.ZIndex = 72
+creditText.Parent = infoContent
+
+local versionText = Instance.new("TextLabel")
+versionText.Size = UDim2.new(1, 0, 0, 20)
+versionText.Position = UDim2.new(0, 0, 0.35, 65)
+versionText.BackgroundTransparency = 1
+versionText.Text = "v2.0 // MATRIX EDITION"
+versionText.TextColor3 = NEON_GREEN
+versionText.TextSize = 12
+versionText.Font = Enum.Font.Code
+versionText.TextTransparency = 0.7
+versionText.ZIndex = 72
+versionText.Parent = infoContent
+
+--// PANIC BUTTON (ZIndex 250 - Above everything)
+local panicButton = Instance.new("TextButton")
+panicButton.Size = UDim2.new(0, 45, 0, 45)
+panicButton.Position = UDim2.new(1, -55, 0, 10)
+panicButton.BackgroundColor3 = DARK_BG
+panicButton.Text = "P"
+panicButton.TextColor3 = NEON_GREEN
+panicButton.TextSize = 24
+panicButton.Font = Enum.Font.GothamBold
+panicButton.ZIndex = 250 -- Above black screen
+panicButton.Visible = false
+panicButton.Parent = screenGui
+
+local panicCorner = Instance.new("UICorner")
+panicCorner.CornerRadius = UDim.new(1, 0)
+panicCorner.Parent = panicButton
+
+local panicStroke = Instance.new("UIStroke")
+panicStroke.Color = NEON_GREEN
+panicStroke.Thickness = 3
+panicStroke.Parent = panicButton
+
+--// FPS COUNTER (ZIndex 250)
+local fpsCounter = Instance.new("TextLabel")
+fpsCounter.Size = UDim2.new(0, 50, 0, 20)
+fpsCounter.Position = UDim2.new(1, -60, 0, 10)
+fpsCounter.BackgroundTransparency = 1
+fpsCounter.Text = "60"
+fpsCounter.TextColor3 = NEON_GREEN
+fpsCounter.TextSize = 14
+fpsCounter.Font = Enum.Font.Code
+fpsCounter.TextXAlignment = Enum.TextXAlignment.Right
+fpsCounter.ZIndex = 250
+fpsCounter.Parent = screenGui
+
+--// AUTO-DETECT NOTIFICATION (ZIndex 250)
+local autoNotify = Instance.new("Frame")
+autoNotify.Size = UDim2.new(0, 280, 0, 45)
+autoNotify.Position = UDim2.new(0, 10, 1, 50)
+autoNotify.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+autoNotify.BorderSizePixel = 0
+autoNotify.ZIndex = 250
+autoNotify.Visible = false
+autoNotify.Parent = screenGui
+
+local notifyCorner = Instance.new("UICorner")
+notifyCorner.CornerRadius = UDim.new(0, 6)
+notifyCorner.Parent = autoNotify
+
+local notifyStroke = Instance.new("UIStroke")
+notifyStroke.Color = NEON_GREEN
+notifyStroke.Thickness = 2
+notifyStroke.Parent = autoNotify
+
+local notifyText = Instance.new("TextLabel")
+notifyText.Size = UDim2.new(1, -10, 1, 0)
+notifyText.Position = UDim2.new(0, 5, 0, 0)
+notifyText.BackgroundTransparency = 1
+notifyText.Text = "Low FPS Detected - Enable Power Save?"
+notifyText.TextColor3 = NEON_GREEN
+notifyText.TextSize = 12
+notifyText.Font = Enum.Font.Code
+notifyText.ZIndex = 251
+notifyText.Parent = autoNotify
+
+--// END OF SECTION 2
+--// MATRIX POWER HUB - SECTION 3
+-- Toggle Creation, Input Handling, Tab Logic, Graphics Integration
+
+--// Toggle Creator
+local function createToggle(parent, name, yPos, labelText)
+	local frame = Instance.new("Frame")
+	frame.Name = name .. "Frame"
+	frame.Size = UDim2.new(1, -20, 0, 60)
+	frame.Position = UDim2.new(0, 10, 0, yPos)
+	frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	frame.BorderSizePixel = 0
+	frame.ZIndex = 72
+	frame.Parent = parent
+	
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = frame
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = NEON_GREEN
+	stroke.Thickness = 1
+	stroke.Parent = frame
+	
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(0.6, 0, 1, 0)
+	label.Position = UDim2.new(0, 15, 0, 0)
+	label.BackgroundTransparency = 1
+	label.Text = labelText
+	label.TextColor3 = NEON_GREEN
+	label.TextSize = 13
+	label.Font = Enum.Font.Code
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.ZIndex = 74
+	label.Parent = frame
+	
+	local btn = Instance.new("TextButton")
+	btn.Name = "ToggleBtn"
+	btn.Size = UDim2.new(0, 80, 0, 30)
+	btn.Position = UDim2.new(1, -95, 0.5, -15)
+	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	btn.Text = ""
+	btn.AutoButtonColor = false
+	btn.ZIndex = 73
+	btn.Parent = frame
+	
+	local btnCorner = Instance.new("UICorner")
+	btnCorner.CornerRadius = UDim.new(0, 15)
+	btnCorner.Parent = btn
+	
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.new(0, 0, 1, 0)
+	fill.Position = UDim2.new(0, 0, 0, 0)
+	fill.BackgroundColor3 = NEON_GREEN
+	fill.BorderSizePixel = 0
+	fill.ZIndex = 74
+	fill.Parent = btn
+	
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0, 15)
+	fillCorner.Parent = fill
+	
+	local status = Instance.new("TextLabel")
+	status.Size = UDim2.new(1, 0, 1, 0)
+	status.BackgroundTransparency = 1
+	status.Text = "OFF"
+	status.TextColor3 = Color3.fromRGB(150, 150, 150)
+	status.TextSize = 12
+	status.Font = Enum.Font.GothamBold
+	status.ZIndex = 75
+	status.Parent = btn
+	
+	return {Frame = frame, Button = btn, Fill = fill, Status = status}
+end
+
+--// Animation Function
+local function animateToggle(toggleData, isOn)
+	if not toggleData then return end
+	if isOn then
+		TweenService:Create(toggleData.Fill, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+			{Size = UDim2.new(1, 0, 1, 0)}):Play()
+		toggleData.Status.Text = "ON"
+		toggleData.Status.TextColor3 = DARK_BG
+	else
+		TweenService:Create(toggleData.Fill, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+			{Size = UDim2.new(0, 0, 1, 0)}):Play()
+		toggleData.Status.Text = "OFF"
+		toggleData.Status.TextColor3 = Color3.fromRGB(150, 150, 150)
+	end
+end
+
+--// Create Toggles
+local normalToggle = createToggle(psmContent, "Normal", 80, "NORMAL POWER SAVE")
+local maxToggle = createToggle(psmContent, "Max", 150, "MAXIMUM POWER SAVE")
+local antiAfkToggle = createToggle(otherContent, "AntiAFK", 10, "ANTI-AFK")
+local minGfxToggle = createToggle(otherContent, "MinGFX", 80, "MINIMAL GRAPHICS")
+local extremeToggle = createToggle(otherContent, "Extreme", 150, "EXTREME POTATO MODE")
+
+--// Tab Switching
+local function switchTab(tabName)
+	currentTab = tabName
+	psmContent.Visible = (tabName == "PSM")
+	otherContent.Visible = (tabName == "OTHER")
+	infoContent.Visible = (tabName == "INFO")
+	
+	psmTabBtn.BackgroundColor3 = (tabName == "PSM") and NEON_GREEN or Color3.fromRGB(30, 30, 30)
+	psmTabBtn.TextColor3 = (tabName == "PSM") and DARK_BG or NEON_GREEN
+	
+	otherTabBtn.BackgroundColor3 = (tabName == "OTHER") and NEON_GREEN or Color3.fromRGB(30, 30, 30)
+	otherTabBtn.TextColor3 = (tabName == "OTHER") and DARK_BG or NEON_GREEN
+	
+	infoTabBtn.BackgroundColor3 = (tabName == "INFO") and NEON_GREEN or Color3.fromRGB(30, 30, 30)
+	infoTabBtn.TextColor3 = (tabName == "INFO") and DARK_BG or NEON_GREEN
+end
+
+psmTabBtn.MouseButton1Click:Connect(function() switchTab("PSM") end)
+otherTabBtn.MouseButton1Click:Connect(function() switchTab("OTHER") end)
+infoTabBtn.MouseButton1Click:Connect(function() switchTab("INFO") end)
+
+--// Input Handling
+local isDraggingIsland = false
+local isDraggingPanel = false
+local dragStart = nil
+local startPos = nil
+local dragThreshold = 5
+local currentInput = nil
+
+island.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.Touch or 
+	   input.UserInputType == Enum.UserInputType.MouseButton1 then
+		isDraggingIsland = false
+		dragStart = input.Position
+		local absPos = island.AbsolutePosition
+		startPos = {X = absPos.X, Y = absPos.Y}
+		currentInput = input
+		
+		local moveConnection
+		local endConnection
+		
+		moveConnection = UserInputService.InputChanged:Connect(function(moveInput)
+			if moveInput == currentInput then
+				local delta = (moveInput.Position - dragStart).magnitude
+				if delta > dragThreshold then
+					isDraggingIsland = true
+					local deltaPos = moveInput.Position - dragStart
+					island.Position = UDim2.new(0, startPos.X + deltaPos.X, 0, startPos.Y + deltaPos.Y)
+				end
+			end
+		end)
+		
+		endConnection = UserInputService.InputEnded:Connect(function(endInput)
+			if endInput == currentInput then
+				moveConnection:Disconnect()
+				endConnection:Disconnect()
+				currentInput = nil
+				if not isDraggingIsland and not isExpanded then
+					expandIsland()
+				end
+			end
+		end)
+	end
+end)
+
+headerBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.Touch or 
+	   input.UserInputType == Enum.UserInputType.MouseButton1 then
+		isDraggingPanel = false
+		dragStart = input.Position
+		local absPos = expandedContainer.AbsolutePosition
+		startPos = {X = absPos.X, Y = absPos.Y}
+		currentInput = input
+		
+		local moveConnection
+		local endConnection
+		
+		moveConnection = UserInputService.InputChanged:Connect(function(moveInput)
+			if moveInput == currentInput then
+				local delta = (moveInput.Position - dragStart).magnitude
+				if delta > dragThreshold then
+					isDraggingPanel = true
+					local deltaPos = moveInput.Position - dragStart
+					local newPos = UDim2.new(0, startPos.X + deltaPos.X, 0, startPos.Y + deltaPos.Y)
+					expandedContainer.Position = newPos
+					savedPanelPos = newPos
+				end
+			end
+		end)
+		
+		endConnection = UserInputService.InputEnded:Connect(function(endInput)
+			if endInput == currentInput then
+				moveConnection:Disconnect()
+				endConnection:Disconnect()
+				currentInput = nil
+			end
+		end)
+	end
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+	if isExpanded then collapseIsland() end
+end)
+
+--// NORMAL PSM - Enables Minimal Graphics + Black Screen (Island stays visible!)
+normalToggle.Button.MouseButton1Click:Connect(function()
+	local newState = not (activePowerMode == "NORMAL")
+	activePowerMode = newState and "NORMAL" or "NONE"
+	animateToggle(normalToggle, newState)
+	
+	if newState then
+		-- Turn on Normal PSM
+		animateToggle(maxToggle, false)
+		blackScreen.Visible = true
+		panicButton.Visible = true
+		setMinimalGraphics(true) -- Enable minimal graphics
+	else
+		-- Turn off
+		blackScreen.Visible = false
+		panicButton.Visible = false
+		setMinimalGraphics(false) -- Disable minimal graphics
+	end
+end)
+
+--// MAX PSM - Enables Extreme Graphics + Black Screen (Island stays visible!)
+maxToggle.Button.MouseButton1Click:Connect(function()
+	local newState = not (activePowerMode == "MAX")
+	activePowerMode = newState and "MAX" or "NONE"
+	animateToggle(maxToggle, newState)
+	
+	if newState then
+		-- Turn on Max PSM
+		animateToggle(normalToggle, false)
+		blackScreen.Visible = true
+		panicButton.Visible = true
+		setExtremeGraphics(true) -- Enable extreme graphics
+	else
+		-- Turn off
+		blackScreen.Visible = false
+		panicButton.Visible = false
+		setExtremeGraphics(false) -- Disable extreme graphics
+	end
+end)
+
+--// Other toggles (Anti-AFK, Graphics)
+antiAfkToggle.Button.MouseButton1Click:Connect(function()
+	antiAFKEnabled = not antiAFKEnabled
+	animateToggle(antiAfkToggle, antiAFKEnabled)
+	if antiAFKEnabled then lastAFKTime = tick() end
+end)
+
+minGfxToggle.Button.MouseButton1Click:Connect(function()
+	minimalGFX = not minimalGFX
+	animateToggle(minGfxToggle, minimalGFX)
+	if minimalGFX then
+		animateToggle(extremeToggle, false)
+		extremeGFX = false
+	end
+	setMinimalGraphics(minimalGFX)
+end)
+
+extremeToggle.Button.MouseButton1Click:Connect(function()
+	extremeGFX = not extremeGFX
+	animateToggle(extremeToggle, extremeGFX)
+	if extremeGFX then
+		animateToggle(minGfxToggle, false)
+		minimalGFX = false
+	end
+	setExtremeGraphics(extremeGFX)
+end)
+
+--// END OF SECTION 3
+--// MATRIX POWER HUB - SECTION 4
+-- Functions, Graphics, FPS, Rain Animation
+
+--// Expand/Collapse (Island NEVER hidden, stays at ZIndex 200)
+function expandIsland()
+	isExpanded = true
+	islandPosBeforeExpand = island.Position
+	
+	if not savedPanelPos then
+		local screenSize = workspace.CurrentCamera.ViewportSize
+		local centerX = (screenSize.X - 450) / 2
+		local centerY = (screenSize.Y - 400) / 2
+		expandedContainer.Position = UDim2.new(0, centerX, 0, centerY)
+	else
+		expandedContainer.Position = savedPanelPos
+	end
+	
+	expandedContainer.Visible = true
+	-- island.Visible stays true! (ZIndex 200 > blackScreen 50)
+end
+
+function collapseIsland()
+	isExpanded = false
+	expandedContainer.Visible = false
+	if islandPosBeforeExpand then
+		island.Position = islandPosBeforeExpand
+	end
+	-- island stays visible
+end
+
+--// Graphics Functions
+function setExtremeGraphics(enabled)
+	if enabled then
+		pcall(function() settings().Rendering.QualityLevel = 1 end)
+		Lighting.GlobalShadows = false
+		Lighting.Brightness = 0.3
+		Lighting.Ambient = Color3.new(0.5, 0.5, 0.5)
+		Lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
+		
+		for _, v in ipairs(workspace:GetDescendants()) do
+			if v:IsA("ParticleEmitter") then
+				v.Enabled = false
+			elseif v:IsA("Texture") or v:IsA("Decal") then
+				v.Transparency = 1
+			elseif v:IsA("BasePart") then
+				v.Material = Enum.Material.Plastic
+			elseif v:IsA("PointLight") or v:IsA("SpotLight") or v:IsA("SurfaceLight") then
+				v.Enabled = false
+			end
+		end
+	else
+		pcall(function() settings().Rendering.QualityLevel = 10 end)
+		Lighting.GlobalShadows = true
+		Lighting.Brightness = 1
+		Lighting.Ambient = Color3.fromRGB(127, 127, 127)
+		Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
+		
+		for _, v in ipairs(workspace:GetDescendants()) do
+			if v:IsA("ParticleEmitter") then
+				v.Enabled = true
+			elseif v:IsA("Texture") or v:IsA("Decal") then
+				v.Transparency = 0
+			elseif v:IsA("PointLight") or v:IsA("SpotLight") or v:IsA("SurfaceLight") then
+				v.Enabled = true
+			end
+		end
+	end
+end
+
+function setMinimalGraphics(enabled)
+	if enabled then
+		pcall(function() settings().Rendering.QualityLevel = 1 end)
+		Lighting.GlobalShadows = false
+		Lighting.Brightness = 0.5
+	else
+		if not extremeGFX then
+			pcall(function() settings().Rendering.QualityLevel = 10 end)
+			Lighting.GlobalShadows = true
+			Lighting.Brightness = 1
+		end
+	end
+end
+
+--// Panic Button (Turns everything off)
+panicButton.MouseButton1Click:Connect(function()
+	activePowerMode = "NONE"
+	antiAFKEnabled = false
+	minimalGFX = false
+	extremeGFX = false
+	blackScreen.Visible = false
+	panicButton.Visible = false
+	
+	animateToggle(normalToggle, false)
+	animateToggle(maxToggle, false)
+	animateToggle(antiAfkToggle, false)
+	animateToggle(minGfxToggle, false)
+	animateToggle(extremeToggle, false)
+	
+	setExtremeGraphics(false)
+	setMinimalGraphics(false)
+end)
+
+--// FPS & Auto-Detect
+local lastCalcTime = tick()
+local frameAccumulator = 0
+local notifyShown = false
+
+RunService.Heartbeat:Connect(function()
+	frameAccumulator = frameAccumulator + 1
+	local now = tick()
+	
+	if now - lastCalcTime >= 0.5 then
+		fpsValue = math.floor(frameAccumulator / (now - lastCalcTime))
+		fpsCounter.Text = tostring(fpsValue)
+		frameAccumulator = 0
+		lastCalcTime = now
+		
+		if fpsValue < 25 and not notifyShown and activePowerMode == "NONE" and now > 5 then
+			notifyShown = true
+			autoNotify.Visible = true
+			TweenService:Create(autoNotify, TweenInfo.new(0.5), {Position = UDim2.new(0, 10, 1, -55)}):Play()
+			task.delay(2.5, function()
+				TweenService:Create(autoNotify, TweenInfo.new(0.5), {Position = UDim2.new(0, 10, 1, 50)}):Play()
+				task.wait(0.5)
+				autoNotify.Visible = false
+				task.wait(10)
+				notifyShown = false
+			end)
+		end
+	end
+	
+	if antiAFKEnabled and (now - lastAFKTime > math.random(600, 900)) then
+		pcall(function()
+			camera.CFrame = camera.CFrame * CFrame.Angles(0, math.rad(0.1), 0)
+			task.wait(0.1)
+			camera.CFrame = camera.CFrame * CFrame.Angles(0, math.rad(-0.1), 0)
+		end)
+		lastAFKTime = now
+	end
+end)
+
+--// Panic Pulse
+task.spawn(function()
+	while true do
+		if panicButton.Visible then
+			TweenService:Create(panicButton, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), 
+				{BackgroundColor3 = Color3.fromRGB(40, 100, 40)}):Play()
+			task.wait(1)
+			TweenService:Create(panicButton, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), 
+				{BackgroundColor3 = DARK_BG}):Play()
+			task.wait(1)
+		else
+			task.wait(0.5)
+		end
+	end
+end)
+
+--// Rain Animation
+RunService.RenderStepped:Connect(function()
+	-- Panel Rain
+	if expandedContainer.Visible then
+		for i = 1, #rainColumns do
+			local col = rainColumns[i]
+			local y = col.Position.Y.Offset + rainSpeeds[i]
+			if y > 20 then
+				y = -150
+				local str = ""
+				for j = 1, 30 do str = str .. getRandomChar() .. "\n" end
+				col.Text = str
+			end
+			col.Position = UDim2.new(0, (i-1)*22, 0, y)
+		end
+	end
+	
+	-- Island Rain (Always runs since island is always visible)
+	if island.Visible then
+		for i = 1, #bgRainColumns do
+			local col = bgRainColumns[i]
+			local y = col.Position.Y.Offset + bgRainSpeeds[i]
+			if y > 10 then
+				y = -50
+				local str = ""
+				for j = 1, 10 do str = str .. getRandomBinary() .. "\n" end
+				col.Text = str
+			end
+			col.Position = UDim2.new(0, 2 + (i-1)*11, 0, y)
+		end
+		
+		for i = 1, #islandRainColumns do
+			local col = islandRainColumns[i]
+			local y = col.Position.Y.Offset + islandRainSpeeds[i]
+			if y > 15 then
+				y = -45
+				local str = ""
+				for j = 1, 8 do str = str .. getRandomBinary() .. "\n" end
+				col.Text = str
+			end
+			col.Position = UDim2.new(0, 5 + (i-1)*13, 0, y)
+		end
+	end
+end)
+
+print("PSM Matrix Hub v2.0 - Fully Fixed")
+--// END OF SECTION 4
